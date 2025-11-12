@@ -16,7 +16,7 @@
   "commands": [
     {
       "name": "ask-it",
-      "title": "Ask it",
+      "title": "Ask It",
       "description": "Ask the library.",
       "mode": "no-view"
     },
@@ -24,18 +24,20 @@
       "name": "upload-files",
       "title": "Upload Files",
       "description": "Upload files to Great Library",
-      "mode": "no-view"
+      "mode": "view"
     },
     {
       "name": "list-files",
       "title": "List Files",
       "description": "What are stored in Great Library",
-      "mode": "no-view"
+      "mode": "view"
     }
   ],
   "dependencies": {
+    "@google/genai": "^1.29.0",
     "@raycast/api": "^1.103.6",
-    "@raycast/utils": "^1.17.0"
+    "@raycast/utils": "^1.17.0",
+    "mime-types": "^3.0.1"
   },
   "devDependencies": {
     "@raycast/eslint-config": "^2.0.4",
@@ -45,6 +47,24 @@
     "prettier": "^3.5.3",
     "typescript": "^5.8.2"
   },
+  "preferences": [
+    {
+      "name": "api-key",
+      "title": "Google AI API Key",
+      "type": "password",
+      "description": "Generate one at https://aistudio.google.com/app/apikey and paste it here.",
+      "required": true
+    },
+    {
+      "name": "store-display-name",
+      "title": "File Search Store Display Name",
+      "type": "textfield",
+      "placeholder": "Great Library",
+      "default": "Great Library",
+      "description": "Shown in Gemini File Search console. Used only when the store is created for the first time.",
+      "required": false
+    }
+  ],
   "scripts": {
     "build": "ray build",
     "dev": "ray develop",
