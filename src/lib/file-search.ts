@@ -3,7 +3,7 @@ import { UploadToFileSearchStoreOperation as UploadOperationClass } from "@googl
 import type { Document, DocumentState, FileSearchStore, UploadToFileSearchStoreParameters } from "@google/genai";
 import { getExtensionPreferences } from "./preferences";
 import { getGoogleClient } from "./google-client";
-import { replaceDocuments, setFileSearchStoreId, getFileSearchStoreId } from "./cache";
+import { replaceDocuments } from "./cache";
 import type { StoredDocument, UploadStatus } from "./types";
 
 interface CreateStoreResult {
@@ -26,26 +26,10 @@ function parseStoreName(store: FileSearchStore | string, fallbackDisplayName?: s
 
 export async function ensureFileSearchStore(): Promise<CreateStoreResult> {
   const client = getGoogleClient();
-  const cachedId = await getFileSearchStoreId();
-
-  if (cachedId) {
-    const name = `fileSearchStores/${cachedId}`;
-    try {
-      const store = await client.fileSearchStores.get({ name });
-      const parsed = parseStoreName(store);
-      await setFileSearchStoreId(parsed.id);
-      return parsed;
-    } catch (error) {
-      console.warn("Failed to fetch cached file search store", { name, error });
-      return { id: cachedId, name };
-    }
-  }
-
   const { storeDisplayName } = getExtensionPreferences();
 
   const existingStore = await findExistingStore(client, storeDisplayName);
   if (existingStore) {
-    await setFileSearchStoreId(existingStore.id);
     return existingStore;
   }
 
@@ -62,8 +46,6 @@ export async function ensureFileSearchStore(): Promise<CreateStoreResult> {
     });
 
     const { id, name, displayName } = parseStoreName(store, storeDisplayName);
-    await setFileSearchStoreId(id);
-
     toast.title = "File Search store ready";
     toast.style = Toast.Style.Success;
 
@@ -153,13 +135,13 @@ async function findExistingStore(
   targetDisplayName: string,
 ): Promise<CreateStoreResult | undefined> {
   try {
-    const pager = await client.fileSearchStores.list({ config: { pageSize: 50 } });
+    const pager = await client.fileSearchStores.list({ config: { pageSize: 20 } });
     for await (const store of pager) {
       if (!store?.name) {
         continue;
       }
 
-      const matchesDisplayName = !store.displayName || store.displayName === targetDisplayName;
+      const matchesDisplayName = store.displayName === targetDisplayName;
       if (matchesDisplayName) {
         return parseStoreName(store);
       }
