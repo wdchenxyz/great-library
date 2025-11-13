@@ -76,11 +76,10 @@ export default function ListFilesCommand() {
               <ActionPanel>
                 <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refresh} />
                 <Action title="Upload More Files" icon={Icon.ArrowUpCircle} onAction={openUploadCommand} />
-                <Action
-                  title="Delete All Documents"
-                  icon={Icon.Exclamationmark3}
-                  style={Action.Style.Destructive}
-                  onAction={handleDeleteAll}
+                <Action.CopyToClipboard
+                  title="Copy Document ID"
+                  content={doc.id}
+                  shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
                 />
                 <Action
                   title="Delete File"
@@ -88,7 +87,12 @@ export default function ListFilesCommand() {
                   style={Action.Style.Destructive}
                   onAction={() => handleDelete(doc.id, doc.name)}
                 />
-                <Action.CopyToClipboard title="Copy Document ID" content={doc.id} />
+                <Action
+                  title="Delete All Documents"
+                  icon={Icon.Exclamationmark3}
+                  style={Action.Style.Destructive}
+                  onAction={handleDeleteAll}
+                />
               </ActionPanel>
             }
           />
