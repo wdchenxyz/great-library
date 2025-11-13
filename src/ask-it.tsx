@@ -1,162 +1,27 @@
-import { Action, ActionPanel, Clipboard, Icon, List, Toast, showToast } from "@raycast/api";
-import type { Content } from "@google/genai";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { randomUUID } from "node:crypto";
-import { getDocuments } from "./lib/cache";
-import {
-  buildAskHistory,
-  CitationEntry,
-  DEFAULT_MAX_CONTEXT_MESSAGES,
-  describeGroundingChunk,
-  runAskFlow,
-  truncate,
-} from "./lib/ask";
-import type { StoredDocument } from "./lib/types";
-
-type QaEntry = {
-  id: string;
-  question: string;
-  status: "pending" | "ready" | "error";
-  answer?: string;
-  error?: string;
-  citations: CitationEntry[];
-  createdAt: string;
-};
-
-const MAX_CONTEXT_MESSAGES = DEFAULT_MAX_CONTEXT_MESSAGES;
+import { Action, ActionPanel, Icon, List } from "@raycast/api";
+import { useMemo, useState } from "react";
+import { truncate } from "./lib/ask";
+import { useAskQuestion, type QaEntry } from "./hooks/useAskQuestion";
+import { copyEntryAnswer, copyEntryCitations, getEntryMarkdown } from "./utils/ui-helpers";
 
 export default function AskItCommand() {
   const [searchText, setSearchText] = useState<string>("");
-  const [entries, setEntries] = useState<QaEntry[]>([]);
-  const [conversation, setConversation] = useState<Content[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [documents, setDocuments] = useState<StoredDocument[]>([]);
+  const { entries, isLoading, ask, clearHistory } = useAskQuestion();
 
-  useEffect(() => {
-    getDocuments()
-      .then(setDocuments)
-      .catch((error) => console.error("Failed to load cached documents", error));
-  }, []);
+  // Handle ask action
+  const handleAsk = async (input?: string) => {
+    const question = (input ?? searchText).trim();
+    if (!question) return;
 
-  const handleAsk = useCallback(
-    async (input?: string) => {
-      const question = (input ?? searchText).trim();
-      if (!question || isLoading) {
-        return;
-      }
+    await ask(question);
 
-      console.log("[AskIt] Asking question", { question, hasInput: Boolean(input) });
+    // Clear search text if we used an input
+    if (input) {
+      setSearchText("");
+    }
+  };
 
-      const entryId = randomUUID();
-      const createdAt = new Date().toISOString();
-      setEntries((prev) => [
-        {
-          id: entryId,
-          question,
-          status: "pending",
-          citations: [],
-          createdAt,
-        },
-        ...prev,
-      ]);
-
-      setIsLoading(true);
-      const toast = await showToast({ style: Toast.Style.Animated, title: "Searching documents..." });
-
-      try {
-        const history = buildAskHistory(question, conversation);
-        console.log("[AskIt] Sending request", {
-          historyCount: history.length,
-          latestUserQuestionLength: question.length,
-          documentCount: documents.length,
-        });
-
-        const {
-          answer,
-          citations,
-          metadata,
-          modelContent,
-          store,
-          conversation: updatedConversation,
-        } = await runAskFlow({
-          question,
-          conversation,
-          history,
-          documents,
-          maxContextMessages: MAX_CONTEXT_MESSAGES,
-        });
-        console.log("[AskIt] Using file search store", {
-          storeName: store.name,
-          storeDisplayName: store.displayName ?? "(no display name)",
-        });
-        console.log("[AskIt] Received response", {
-          answerPreview: answer ? `${answer.slice(0, 80)}${answer.length > 80 ? "…" : ""}` : null,
-          citationCount: citations.length,
-          groundingChunkCount: metadata?.groundingChunks?.length ?? 0,
-          searchQueryCount: metadata?.webSearchQueries?.length ?? 0,
-          toolCalls: modelContent?.parts?.filter((part) => part?.inlineData || part?.functionCall).length ?? 0,
-        });
-        if (metadata?.groundingChunks?.length) {
-          console.log("[AskIt] Grounding chunks", metadata.groundingChunks.map(describeGroundingChunk));
-        }
-        if (citations.length) {
-          console.log(
-            "[AskIt] Citations",
-            citations.map((citation) => ({
-              documentId: citation.documentId,
-              documentName: citation.documentName,
-              snippetPreview: truncate(citation.snippet),
-              uri: citation.uri,
-            })),
-          );
-        }
-
-        setConversation(updatedConversation);
-
-        setEntries((prev) =>
-          prev.map((entry) =>
-            entry.id === entryId
-              ? {
-                  ...entry,
-                  status: "ready",
-                  answer: answer || "_The model returned no answer._",
-                  citations,
-                }
-              : entry,
-          ),
-        );
-
-        toast.style = Toast.Style.Success;
-        toast.title = "Answer ready";
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        setEntries((prev) =>
-          prev.map((entry) =>
-            entry.id === entryId
-              ? {
-                  ...entry,
-                  status: "error",
-                  error: message,
-                }
-              : entry,
-          ),
-        );
-        toast.style = Toast.Style.Failure;
-        toast.title = "Question failed";
-        toast.message = message;
-        console.error("Ask command failed", error);
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [conversation, documents, isLoading, searchText],
-  );
-
-  const clearHistory = useCallback(() => {
-    setEntries([]);
-    setConversation([]);
-  }, []);
-
+  // Compute placeholder detail based on latest entry
   const latestEntry = entries[0];
   const placeholderDetail = useMemo(() => {
     if (!latestEntry) {
@@ -189,8 +54,11 @@ export default function AskItCommand() {
           detail={<List.Item.Detail markdown={placeholderDetail} />}
           actions={
             <ActionPanel>
-              <Action title="Ask Question" icon={Icon.MagnifyingGlass} onAction={() => handleAsk()} />
-              <Action title="Ask" icon={Icon.MagnifyingGlass} onAction={() => handleAsk()} />
+              <Action
+                title="Ask Question"
+                icon={Icon.MagnifyingGlass}
+                onAction={() => handleAsk()}
+              />
               {entries.length > 0 && (
                 <Action
                   title="Clear History"
@@ -214,7 +82,12 @@ export default function AskItCommand() {
               accessories={[{ date: new Date(entry.createdAt) }]}
               icon={entry.status === "error" ? Icon.ExclamationMark : Icon.Document}
               subtitle={entry.status === "error" ? "Error" : undefined}
-              detail={<List.Item.Detail markdown={getEntryMarkdown(entry)} metadata={getEntryMetadata(entry)} />}
+              detail={
+                <List.Item.Detail
+                  markdown={getEntryMarkdown(entry)}
+                  metadata={<EntryMetadata entry={entry} />}
+                />
+              }
               actions={
                 <ActionPanel>
                   <Action
@@ -223,8 +96,16 @@ export default function AskItCommand() {
                     onAction={() => copyEntryAnswer(entry)}
                     shortcut={{ modifiers: ["cmd"], key: "c" }}
                   />
-                  <Action title="Copy Citations" icon={Icon.Clipboard} onAction={() => copyEntryCitations(entry)} />
-                  <Action title="Ask Follow-Up" icon={Icon.Message} onAction={() => setSearchText("")} />
+                  <Action
+                    title="Copy Citations"
+                    icon={Icon.Clipboard}
+                    onAction={() => copyEntryCitations(entry.citations)}
+                  />
+                  <Action
+                    title="Ask Follow-Up"
+                    icon={Icon.Message}
+                    onAction={() => setSearchText("")}
+                  />
                   <Action
                     title="Ask Again"
                     icon={Icon.Repeat}
@@ -247,21 +128,20 @@ export default function AskItCommand() {
   );
 }
 
-function getEntryMarkdown(entry: QaEntry): string {
-  if (entry.status === "pending") {
-    return "_Searching documents..._";
-  }
-  if (entry.status === "error") {
-    return `⚠️ ${entry.error ?? "Something went wrong."}`;
-  }
-  return entry.answer ?? "_No answer provided._";
-}
-
-function getEntryMetadata(entry: QaEntry) {
+/**
+ * Component for displaying entry metadata
+ */
+function EntryMetadata({ entry }: { entry: QaEntry }) {
   return (
     <List.Item.Detail.Metadata>
-      <List.Item.Detail.Metadata.Label title="Question" text={entry.question} />
-      <List.Item.Detail.Metadata.Label title="Asked" text={new Date(entry.createdAt).toLocaleString()} />
+      <List.Item.Detail.Metadata.Label
+        title="Question"
+        text={entry.question}
+      />
+      <List.Item.Detail.Metadata.Label
+        title="Asked"
+        text={new Date(entry.createdAt).toLocaleString()}
+      />
       {entry.citations.length > 0 && (
         <>
           <List.Item.Detail.Metadata.Separator />
@@ -277,31 +157,4 @@ function getEntryMetadata(entry: QaEntry) {
       )}
     </List.Item.Detail.Metadata>
   );
-}
-
-async function copyEntryAnswer(entry: QaEntry) {
-  if (!entry.answer) {
-    return;
-  }
-  await Clipboard.copy(entry.answer);
-}
-
-async function copyEntryCitations(entry: QaEntry) {
-  if (!entry.citations.length) {
-    return;
-  }
-  const payload = entry.citations
-    .map((citation, index) => {
-      const lines = [`${index + 1}. ${citation.documentName}${citation.documentId ? ` (${citation.documentId})` : ""}`];
-      if (citation.snippet) {
-        lines.push(`   “${citation.snippet}”`);
-      }
-      if (citation.uri) {
-        lines.push(`   ${citation.uri}`);
-      }
-      return lines.join("\n");
-    })
-    .join("\n\n");
-
-  await Clipboard.copy(payload);
 }

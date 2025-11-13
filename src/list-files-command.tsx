@@ -1,56 +1,22 @@
-import { Action, ActionPanel, Color, Icon, LaunchType, List, Toast, launchCommand, showToast } from "@raycast/api";
-import { useCallback, useEffect, useState } from "react";
-import { fetchDocumentsFromStore } from "./lib/file-search";
-import { getDocuments } from "./lib/cache";
-import type { StoredDocument, UploadStatus } from "./lib/types";
+import { Action, ActionPanel, Icon, LaunchType, List, launchCommand } from "@raycast/api";
 import { formatBytes } from "./lib/format";
+import { useDocumentList } from "./hooks/useDocumentList";
+import { getStatusAccessory } from "./utils/ui-helpers";
 
 export default function ListFilesCommand() {
-  const [documents, setDocuments] = useState<StoredDocument[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { documents, isLoading, isRefreshing, refresh } = useDocumentList();
 
-  const loadFromCache = useCallback(async () => {
-    try {
-      const cached = await getDocuments();
-      setDocuments(cached);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const refreshFromRemote = useCallback(async () => {
-    setIsRefreshing(true);
-    const toast = await showToast({
-      style: Toast.Style.Animated,
-      title: "Syncing with Google File Search",
-    });
-
-    try {
-      const remoteDocs = await fetchDocumentsFromStore();
-      setDocuments(remoteDocs);
-      toast.title = "Documents synced";
-      toast.style = Toast.Style.Success;
-    } catch (error) {
-      toast.style = Toast.Style.Failure;
-      toast.title = "Sync failed";
-      toast.message = error instanceof Error ? error.message : String(error);
-      console.error(error);
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadFromCache().then(() => {
-      refreshFromRemote().catch((error) => console.error(error));
-    });
-  }, [loadFromCache, refreshFromRemote]);
+  const openUploadCommand = async () => {
+    await launchCommand({ name: "upload-files", type: LaunchType.UserInitiated });
+  };
 
   return (
-    <List isLoading={isLoading || isRefreshing} searchBarPlaceholder="Filter documents..." isShowingDetail={false}>
+    <List
+      isLoading={isLoading || isRefreshing}
+      searchBarPlaceholder="Filter documents..."
+      isShowingDetail={false}
+      navigationTitle="Great Library Documents"
+    >
       {documents.length === 0 ? (
         <List.EmptyView
           icon={Icon.Tray}
@@ -58,8 +24,16 @@ export default function ListFilesCommand() {
           description="Upload files to build your library."
           actions={
             <ActionPanel>
-              <Action title="Upload Files" icon={Icon.ArrowUpCircle} onAction={openUploadCommand} />
-              <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refreshFromRemote} />
+              <Action
+                title="Upload Files"
+                icon={Icon.ArrowUpCircle}
+                onAction={openUploadCommand}
+              />
+              <Action
+                title="Refresh"
+                icon={Icon.ArrowClockwise}
+                onAction={refresh}
+              />
             </ActionPanel>
           }
         />
@@ -69,12 +43,26 @@ export default function ListFilesCommand() {
             key={doc.id}
             title={doc.name}
             subtitle={formatBytes(doc.size)}
-            accessories={[getStatusAccessory(doc.status), { date: new Date(doc.uploadDate) }]}
+            accessories={[
+              getStatusAccessory(doc.status),
+              { date: new Date(doc.uploadDate) }
+            ]}
             actions={
               <ActionPanel>
-                <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refreshFromRemote} />
-                <Action title="Upload More Files" icon={Icon.ArrowUpCircle} onAction={openUploadCommand} />
-                <Action.CopyToClipboard title="Copy Document ID" content={doc.id} />
+                <Action
+                  title="Refresh"
+                  icon={Icon.ArrowClockwise}
+                  onAction={refresh}
+                />
+                <Action
+                  title="Upload More Files"
+                  icon={Icon.ArrowUpCircle}
+                  onAction={openUploadCommand}
+                />
+                <Action.CopyToClipboard
+                  title="Copy Document ID"
+                  content={doc.id}
+                />
               </ActionPanel>
             }
           />
@@ -82,22 +70,4 @@ export default function ListFilesCommand() {
       )}
     </List>
   );
-}
-
-function getStatusAccessory(status: UploadStatus) {
-  switch (status) {
-    case "indexed":
-      return { tag: { value: "Indexed", color: Color.Green } };
-    case "processing":
-    case "uploading":
-      return { tag: { value: "Processing", color: Color.Yellow } };
-    case "error":
-      return { tag: { value: "Error", color: Color.Red } };
-    default:
-      return { tag: { value: "Pending", color: Color.SecondaryText } };
-  }
-}
-
-async function openUploadCommand() {
-  await launchCommand({ name: "upload-files", type: LaunchType.UserInitiated });
 }
