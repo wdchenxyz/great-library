@@ -76,6 +76,15 @@ export async function replaceDocuments(documents: StoredDocument[]): Promise<voi
   }));
 }
 
+export async function removeDocument(documentId: string): Promise<StoredDocument[]> {
+  const nextState = await mutateState((state) => ({
+    ...state,
+    documents: state.documents.filter((doc) => doc.id !== documentId),
+  }));
+
+  return nextState.documents;
+}
+
 export async function clearCache(): Promise<void> {
   await writeState({ ...defaultState });
 }

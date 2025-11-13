@@ -3,7 +3,7 @@ import { UploadToFileSearchStoreOperation as UploadOperationClass } from "@googl
 import type { Document, DocumentState, FileSearchStore, UploadToFileSearchStoreParameters } from "@google/genai";
 import { getExtensionPreferences } from "./preferences";
 import { getGoogleClient } from "./google-client";
-import { replaceDocuments } from "./cache";
+import { removeDocument, replaceDocuments } from "./cache";
 import type { StoredDocument, UploadStatus } from "./types";
 
 interface CreateStoreResult {
@@ -98,6 +98,39 @@ export async function fetchDocumentsFromStore(): Promise<StoredDocument[]> {
 
   await replaceDocuments(documents);
   return documents;
+}
+
+export async function deleteDocumentFromStore(documentId: string): Promise<StoredDocument[]> {
+  const { name } = await ensureFileSearchStore();
+  const client = getGoogleClient();
+  const resourceName = `${name}/documents/${documentId}`;
+
+  await client.fileSearchStores.documents.delete({
+    name: resourceName,
+    config: { force: true },
+  });
+
+  return removeDocument(documentId);
+}
+
+export async function deleteAllDocumentsFromStore(): Promise<number> {
+  const { name } = await ensureFileSearchStore();
+  const client = getGoogleClient();
+  const pager = await client.fileSearchStores.documents.list({ parent: name, config: { pageSize: 20 } });
+  const resourceNames: string[] = [];
+
+  for await (const doc of pager) {
+    if (doc?.name) {
+      resourceNames.push(doc.name);
+    }
+  }
+
+  for (const resourceName of resourceNames) {
+    await client.fileSearchStores.documents.delete({ name: resourceName, config: { force: true } });
+  }
+
+  await replaceDocuments([]);
+  return resourceNames.length;
 }
 
 function mapDocument(document: Document): StoredDocument {

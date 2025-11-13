@@ -1,6 +1,6 @@
 import { Toast, showToast } from "@raycast/api";
 import { useCallback, useEffect, useState } from "react";
-import { fetchDocumentsFromStore } from "../lib/file-search";
+import { deleteAllDocumentsFromStore, deleteDocumentFromStore, fetchDocumentsFromStore } from "../lib/file-search";
 import { getDocuments } from "../lib/cache";
 import type { StoredDocument } from "../lib/types";
 
@@ -20,6 +20,8 @@ interface UseDocumentListReturn {
   // Actions
   refresh: () => Promise<void>;
   loadFromCache: () => Promise<void>;
+  deleteDocument: (documentId: string) => Promise<void>;
+  deleteAllDocuments: () => Promise<void>;
 }
 
 /**
@@ -94,6 +96,73 @@ export function useDocumentList(options: UseDocumentListOptions = {}): UseDocume
     }
   }, [onRefreshSuccess, onRefreshError]);
 
+  // Delete a document from the store and update local cache/state
+  const deleteDocument = useCallback(async (documentId: string) => {
+    setIsRefreshing(true);
+
+    const toast = await showToast({
+      style: Toast.Style.Animated,
+      title: "Deleting document",
+    });
+
+    try {
+      const remainingDocs = await deleteDocumentFromStore(documentId);
+      setDocuments(remainingDocs);
+      setError(null);
+
+      toast.title = "Document deleted";
+      toast.style = Toast.Style.Success;
+
+      console.log("[useDocumentList] Deleted document", { documentId });
+    } catch (error) {
+      const errorInstance = error instanceof Error ? error : new Error(String(error));
+      setError(errorInstance);
+
+      toast.style = Toast.Style.Failure;
+      toast.title = "Delete failed";
+      toast.message = errorInstance.message;
+
+      console.error("[useDocumentList] Failed to delete document", {
+        documentId,
+        error,
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  // Delete every document in the store
+  const deleteAllDocuments = useCallback(async () => {
+    setIsRefreshing(true);
+
+    const toast = await showToast({
+      style: Toast.Style.Animated,
+      title: "Deleting all documents",
+    });
+
+    try {
+      await deleteAllDocumentsFromStore();
+      setDocuments([]);
+      setError(null);
+
+      toast.title = "All documents deleted";
+      toast.style = Toast.Style.Success;
+
+      console.log("[useDocumentList] Deleted all documents");
+    } catch (error) {
+      const errorInstance = error instanceof Error ? error : new Error(String(error));
+      setError(errorInstance);
+
+      toast.style = Toast.Style.Failure;
+      toast.title = "Bulk delete failed";
+      toast.message = errorInstance.message;
+
+      console.error("[useDocumentList] Failed to delete all documents", error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, []);
+
   // Initial load: cache first, then optionally refresh
   useEffect(() => {
     loadFromCache().then(() => {
@@ -112,5 +181,7 @@ export function useDocumentList(options: UseDocumentListOptions = {}): UseDocume
     error,
     refresh,
     loadFromCache,
+    deleteDocument,
+    deleteAllDocuments,
   };
 }
