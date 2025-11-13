@@ -1,27 +1,20 @@
 import { Action, ActionPanel, Form, LaunchProps, Toast, showToast } from "@raycast/api";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ensureFileSearchStore, uploadFileToStore, waitForUploadCompletion } from "./lib/file-search";
-import { upsertDocuments } from "./lib/cache";
-import type { StoredDocument } from "./lib/types";
-import { stat } from "node:fs/promises";
-import { lookup as mimeLookup } from "mime-types";
+import {
+  MAX_FILE_SIZE_BYTES,
+  UploadableFile,
+  findOversizedFile,
+  readFilesMetadata,
+  uploadFilesToLibrary,
+} from "./lib/upload";
 import { formatBytes } from "./lib/format";
 
 type FormValues = {
   files?: string[];
 };
 
-type UploadFile = {
-  path: string;
-  name: string;
-  size: number;
-  mimeType: string;
-};
-
-const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
-
 export default function UploadFilesCommand({ launchContext }: LaunchProps) {
-  const [files, setFiles] = useState<UploadFile[]>([]);
+  const [files, setFiles] = useState<UploadableFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [lastSelectionSignature, setLastSelectionSignature] = useState<string>("");
   const lastSelectionRef = useRef<string>("");
@@ -67,48 +60,19 @@ export default function UploadFilesCommand({ launchContext }: LaunchProps) {
           throw new Error("Please pick at least one file.");
         }
 
-        const oversizeFile = selectedFiles.find((file) => file.size > MAX_FILE_SIZE_BYTES);
+        const oversizeFile = findOversizedFile(selectedFiles);
         if (oversizeFile) {
           throw new Error(`${oversizeFile.name} exceeds the 100 MB limit enforced by Google File Search.`);
         }
 
-        const { id: storeId, name: storeName, displayName: storeDisplayName } = await ensureFileSearchStore();
-        console.log("[UploadFiles] Using file search store", {
-          storeId,
-          storeName,
-          storeDisplayName: storeDisplayName ?? "(no display name)",
-        });
         toast.title = "Uploading files";
         toast.message = `${selectedFiles.length} file(s)`;
 
-        const uploadedDocs: StoredDocument[] = [];
-
-        for (const file of selectedFiles) {
-          toast.message = `Uploading ${file.name}`;
-          const operation = await uploadFileToStore({
-            fileSearchStoreName: storeName,
-            file: file.path,
-            config: {
-              displayName: file.name,
-              mimeType: file.mimeType,
-            },
-          });
-
-          const completedOperation = await waitForUploadCompletion(operation);
-          const documentId = parseDocumentId(
-            completedOperation.response?.documentName ?? completedOperation.name ?? "",
-          );
-
-          uploadedDocs.push({
-            id: documentId,
-            name: file.name,
-            uploadDate: new Date().toISOString(),
-            size: file.size,
-            status: "indexed",
-          });
-        }
-
-        await upsertDocuments(uploadedDocs);
+        const { documents: uploadedDocs } = await uploadFilesToLibrary(selectedFiles, {
+          onProgressUpdate: (file) => {
+            toast.message = `Uploading ${file.name}`;
+          },
+        });
 
         toast.style = Toast.Style.Success;
         toast.title = "Upload complete";
@@ -156,32 +120,4 @@ export default function UploadFilesCommand({ launchContext }: LaunchProps) {
       )}
     </Form>
   );
-}
-
-async function readFilesMetadata(paths: string[]): Promise<UploadFile[]> {
-  const metadata: UploadFile[] = [];
-
-  for (const path of paths) {
-    try {
-      const stats = await stat(path);
-      if (!stats.isFile()) {
-        continue;
-      }
-
-      metadata.push({
-        path,
-        name: path.split("/").pop() ?? path,
-        size: stats.size,
-        mimeType: (mimeLookup(path) || "application/octet-stream") as string,
-      });
-    } catch (error) {
-      console.warn("Unable to read file metadata", path, error);
-    }
-  }
-
-  return metadata;
-}
-
-function parseDocumentId(documentName: string): string {
-  return documentName.split("/").pop() ?? documentName;
 }
