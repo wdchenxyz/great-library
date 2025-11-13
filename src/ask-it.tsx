@@ -1,5 +1,5 @@
 import { Action, ActionPanel, Clipboard, Icon, List, Toast, showToast } from "@raycast/api";
-import type { Content, GroundingMetadata } from "@google/genai";
+import type { Content, GroundingChunk, GroundingMetadata } from "@google/genai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { randomUUID } from "node:crypto";
 import { ensureFileSearchStore } from "./lib/file-search";
@@ -102,15 +102,23 @@ export default function AskItCommand() {
           answerPreview: answer ? `${answer.slice(0, 80)}${answer.length > 80 ? "…" : ""}` : null,
           citationCount: citations.length,
           groundingChunkCount: candidate?.groundingMetadata?.groundingChunks?.length ?? 0,
-          searchQueryCount: candidate?.groundingMetadata?.searchQueries?.length ?? 0,
+          searchQueryCount: candidate?.groundingMetadata?.webSearchQueries?.length ?? 0,
           toolCalls: candidate?.content?.parts?.filter((part) => part?.inlineData || part?.functionCall).length ?? 0,
         });
         if (candidate?.groundingMetadata?.groundingChunks?.length) {
           console.log(
             "[AskIt] Grounding chunks",
-            candidate.groundingMetadata.groundingChunks.map((chunk) => ({
-              doc: chunk.retrievedContext?.documentName ?? chunk.retrievedContext?.uri,
-              snippetPreview: chunk.retrievedContext?.ragChunk?.text?.slice(0, 80),
+            candidate.groundingMetadata.groundingChunks.map(describeGroundingChunk),
+          );
+        }
+        if (citations.length) {
+          console.log(
+            "[AskIt] Citations",
+            citations.map((citation) => ({
+              documentId: citation.documentId,
+              documentName: citation.documentName,
+              snippetPreview: truncate(citation.snippet),
+              uri: citation.uri,
             })),
           );
         }
@@ -233,13 +241,11 @@ export default function AskItCommand() {
                     icon={Icon.Clipboard}
                     onAction={() => copyEntryAnswer(entry)}
                     shortcut={{ modifiers: ["cmd"], key: "c" }}
-                    disabled={entry.status !== "ready"}
                   />
                   <Action
                     title="Copy Citations"
                     icon={Icon.Clipboard}
                     onAction={() => copyEntryCitations(entry)}
-                    disabled={entry.citations.length === 0}
                   />
                   <Action title="Ask Follow-Up" icon={Icon.Message} onAction={() => setSearchText("")} />
                   <Action
@@ -339,6 +345,26 @@ async function copyEntryCitations(entry: QaEntry) {
     .join("\n\n");
 
   await Clipboard.copy(payload);
+}
+
+function describeGroundingChunk(chunk: GroundingChunk) {
+  const context = chunk.retrievedContext;
+  const web = chunk.web;
+  const maps = chunk.maps;
+  const snippetSource = context?.ragChunk?.text ?? context?.text ?? maps?.text ?? web?.title;
+
+  return {
+    sourceType: context ? "file-search" : maps ? "maps" : web ? "web" : "unknown",
+    documentName: context?.documentName,
+    title: context?.title ?? maps?.title ?? web?.title,
+    uri: context?.uri ?? maps?.uri ?? web?.uri,
+    snippetPreview: truncate(snippetSource),
+    hasRagChunk: Boolean(context?.ragChunk),
+    hasText: Boolean(context?.text ?? maps?.text ?? web?.title),
+    rawContextKeys: context ? Object.keys(context) : undefined,
+    rawWebKeys: web ? Object.keys(web) : undefined,
+    rawMapsKeys: maps ? Object.keys(maps) : undefined,
+  };
 }
 
 function truncate(text?: string, length = 80) {

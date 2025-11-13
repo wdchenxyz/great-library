@@ -58,7 +58,7 @@ export default function ListFilesCommand() {
           description="Upload files to build your library."
           actions={
             <ActionPanel>
-              <Action title="Upload Files" icon={Icon.ArrowUpTray} onAction={openUploadCommand} />
+              <Action title="Upload Files" icon={Icon.ArrowUpCircle} onAction={openUploadCommand} />
               <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refreshFromRemote} />
             </ActionPanel>
           }
@@ -73,7 +73,7 @@ export default function ListFilesCommand() {
             actions={
               <ActionPanel>
                 <Action title="Refresh" icon={Icon.ArrowClockwise} onAction={refreshFromRemote} />
-                <Action title="Upload More Files" icon={Icon.ArrowUpTray} onAction={openUploadCommand} />
+                <Action title="Upload More Files" icon={Icon.ArrowUpCircle} onAction={openUploadCommand} />
                 <Action.CopyToClipboard title="Copy Document ID" content={doc.id} />
               </ActionPanel>
             }

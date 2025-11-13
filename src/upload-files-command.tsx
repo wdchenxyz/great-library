@@ -95,7 +95,7 @@ export default function UploadFilesCommand({ launchContext }: LaunchProps) {
           });
 
           const completedOperation = await waitForUploadCompletion(operation);
-          const documentId = parseDocumentId(completedOperation.response?.documentName ?? completedOperation.name);
+          const documentId = parseDocumentId(completedOperation.response?.documentName ?? completedOperation.name ?? "");
 
           uploadedDocs.push({
             id: documentId,
@@ -130,7 +130,7 @@ export default function UploadFilesCommand({ launchContext }: LaunchProps) {
     <Form
       actions={
         <ActionPanel>
-          <Action.SubmitForm title="Upload" onSubmit={handleSubmit} disabled={isUploading} />
+          <Action.SubmitForm title="Upload" onSubmit={handleSubmit} />
         </ActionPanel>
       }
       isLoading={isUploading}
