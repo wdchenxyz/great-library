@@ -18,7 +18,7 @@
       "name": "ask-it",
       "title": "Ask It",
       "description": "Ask the library.",
-      "mode": "no-view"
+      "mode": "view"
     },
     {
       "name": "upload-files",
