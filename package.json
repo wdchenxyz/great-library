@@ -39,7 +39,13 @@
       "title": "Ask the Library",
       "description": "Answer questions about the documents stored in the Great Library."
     }
-  ],
+  ,
+    {
+      "name": "note",
+      "title": "note",
+      "description": "Take notes and upload to notebook"
+    }
+      ],
   "dependencies": {
     "@google/genai": "^1.29.0",
     "@raycast/api": "^1.103.6",
