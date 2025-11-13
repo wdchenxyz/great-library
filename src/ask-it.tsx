@@ -48,6 +48,8 @@ export default function AskItCommand() {
         return;
       }
 
+      console.log("[AskIt] Asking question", { question, hasInput: Boolean(input) });
+
       const entryId = randomUUID();
       const createdAt = new Date().toISOString();
       setEntries((prev) => [
@@ -65,25 +67,53 @@ export default function AskItCommand() {
       const toast = await showToast({ style: Toast.Style.Animated, title: "Searching documents..." });
 
       try {
-        const { name: storeName } = await ensureFileSearchStore();
+        const { name: storeName, displayName: storeDisplayName } = await ensureFileSearchStore();
+        console.log("[AskIt] Using file search store", {
+          storeName,
+          storeDisplayName: storeDisplayName ?? "(no display name)",
+        });
+
         const client = getGoogleClient();
         const history = [...conversation, { role: "user", parts: [{ text: question }] }];
+        console.log("[AskIt] Sending request", {
+          historyCount: history.length,
+          latestUserQuestionLength: question.length,
+          documentCount: documents.length,
+        });
 
         const response = await client.models.generateContent({
           model: DEFAULT_MODEL,
           contents: history,
-          tools: [
-            {
-              fileSearch: {
-                fileSearchStoreNames: [storeName],
+          config: {
+            tools: [
+              {
+                fileSearch: {
+                  fileSearchStoreNames: [storeName],
+                },
               },
-            },
-          ],
+            ],
+          },
         });
 
         const candidate = response.candidates?.[0];
         const answer = (response.text ?? extractText(candidate?.content))?.trim();
         const citations = extractCitations(candidate?.groundingMetadata, documents);
+        console.log("[AskIt] Received response", {
+          answerPreview: answer ? `${answer.slice(0, 80)}${answer.length > 80 ? "…" : ""}` : null,
+          citationCount: citations.length,
+          groundingChunkCount: candidate?.groundingMetadata?.groundingChunks?.length ?? 0,
+          searchQueryCount: candidate?.groundingMetadata?.searchQueries?.length ?? 0,
+          toolCalls: candidate?.content?.parts?.filter((part) => part?.inlineData || part?.functionCall).length ?? 0,
+        });
+        if (candidate?.groundingMetadata?.groundingChunks?.length) {
+          console.log(
+            "[AskIt] Grounding chunks",
+            candidate.groundingMetadata.groundingChunks.map((chunk) => ({
+              doc: chunk.retrievedContext?.documentName ?? chunk.retrievedContext?.uri,
+              snippetPreview: chunk.retrievedContext?.ragChunk?.text?.slice(0, 80),
+            })),
+          );
+        }
 
         const updatedHistory: Content[] = [...history];
         if (candidate?.content) {

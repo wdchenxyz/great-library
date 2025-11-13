@@ -72,7 +72,12 @@ export default function UploadFilesCommand({ launchContext }: LaunchProps) {
           throw new Error(`${oversizeFile.name} exceeds the 100 MB limit enforced by Google File Search.`);
         }
 
-        const { name: storeName } = await ensureFileSearchStore();
+        const { id: storeId, name: storeName, displayName: storeDisplayName } = await ensureFileSearchStore();
+        console.log("[UploadFiles] Using file search store", {
+          storeId,
+          storeName,
+          storeDisplayName: storeDisplayName ?? "(no display name)",
+        });
         toast.title = "Uploading files";
         toast.message = `${selectedFiles.length} file(s)`;
 

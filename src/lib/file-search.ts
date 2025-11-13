@@ -1,11 +1,6 @@
 import { showToast, Toast } from "@raycast/api";
-import type {
-  Document,
-  DocumentState,
-  FileSearchStore,
-  UploadToFileSearchStoreOperation,
-  UploadToFileSearchStoreParameters,
-} from "@google/genai";
+import { UploadToFileSearchStoreOperation as UploadOperationClass } from "@google/genai";
+import type { Document, DocumentState, FileSearchStore, UploadToFileSearchStoreParameters } from "@google/genai";
 import { getExtensionPreferences } from "./preferences";
 import { getGoogleClient } from "./google-client";
 import { replaceDocuments, setFileSearchStoreId, getFileSearchStoreId } from "./cache";
@@ -14,9 +9,10 @@ import type { StoredDocument, UploadStatus } from "./types";
 interface CreateStoreResult {
   id: string;
   name: string;
+  displayName?: string;
 }
 
-function parseStoreName(store: FileSearchStore | string): CreateStoreResult {
+function parseStoreName(store: FileSearchStore | string, fallbackDisplayName?: string): CreateStoreResult {
   if (typeof store === "string") {
     const id = store.split("/").pop() ?? store;
     return { id, name: store };
@@ -24,37 +20,54 @@ function parseStoreName(store: FileSearchStore | string): CreateStoreResult {
 
   const name = store.name;
   const id = name.split("/").pop() ?? name;
-  return { id, name };
+  const displayName = store.displayName ?? fallbackDisplayName;
+  return { id, name, displayName };
 }
 
 export async function ensureFileSearchStore(): Promise<CreateStoreResult> {
+  const client = getGoogleClient();
   const cachedId = await getFileSearchStoreId();
 
   if (cachedId) {
-    return { id: cachedId, name: `fileSearchStores/${cachedId}` };
+    const name = `fileSearchStores/${cachedId}`;
+    try {
+      const store = await client.fileSearchStores.get({ name });
+      const parsed = parseStoreName(store);
+      await setFileSearchStoreId(parsed.id);
+      return parsed;
+    } catch (error) {
+      console.warn("Failed to fetch cached file search store", { name, error });
+      return { id: cachedId, name };
+    }
   }
 
-  const client = getGoogleClient();
+  const { storeDisplayName } = getExtensionPreferences();
+
+  const existingStore = await findExistingStore(client, storeDisplayName);
+  if (existingStore) {
+    await setFileSearchStoreId(existingStore.id);
+    return existingStore;
+  }
+
   const toast = await showToast({
     style: Toast.Style.Animated,
     title: "Creating File Search store",
   });
 
   try {
-    const { storeDisplayName } = getExtensionPreferences();
     const store = await client.fileSearchStores.create({
       config: {
         displayName: storeDisplayName || "Great Library",
       },
     });
 
-    const { id, name } = parseStoreName(store);
+    const { id, name, displayName } = parseStoreName(store, storeDisplayName);
     await setFileSearchStoreId(id);
 
     toast.title = "File Search store ready";
     toast.style = Toast.Style.Success;
 
-    return { id, name };
+    return { id, name, displayName };
   } catch (error) {
     toast.style = Toast.Style.Failure;
     toast.title = "Failed to create File Search store";
@@ -63,23 +76,24 @@ export async function ensureFileSearchStore(): Promise<CreateStoreResult> {
   }
 }
 
-export async function uploadFileToStore(
-  input: UploadToFileSearchStoreParameters,
-): Promise<UploadToFileSearchStoreOperation> {
+export async function uploadFileToStore(input: UploadToFileSearchStoreParameters): Promise<UploadOperationClass> {
   const client = getGoogleClient();
   return client.fileSearchStores.uploadToFileSearchStore(input);
 }
 
 export async function waitForUploadCompletion(
-  operation: UploadToFileSearchStoreOperation,
-  onTick?: (op: UploadToFileSearchStoreOperation) => void,
-): Promise<UploadToFileSearchStoreOperation> {
+  operation: UploadOperationClass,
+  onTick?: (op: UploadOperationClass) => void,
+): Promise<UploadOperationClass> {
   let current = operation;
   const client = getGoogleClient();
 
   while (!current.done) {
     await new Promise((resolve) => setTimeout(resolve, 2000));
-    current = (await client.operations.get({ operation: current })) as UploadToFileSearchStoreOperation;
+    if (!current.name) {
+      throw new Error("Upload operation is missing a name.");
+    }
+    current = (await client.operations.get({ operation: current })) as UploadOperationClass;
     onTick?.(current);
   }
 
@@ -132,4 +146,27 @@ function mapDocumentState(state?: DocumentState): UploadStatus {
     default:
       return "pending";
   }
+}
+
+async function findExistingStore(
+  client: ReturnType<typeof getGoogleClient>,
+  targetDisplayName: string,
+): Promise<CreateStoreResult | undefined> {
+  try {
+    const pager = await client.fileSearchStores.list({ config: { pageSize: 50 } });
+    for await (const store of pager) {
+      if (!store?.name) {
+        continue;
+      }
+
+      const matchesDisplayName = !store.displayName || store.displayName === targetDisplayName;
+      if (matchesDisplayName) {
+        return parseStoreName(store);
+      }
+    }
+  } catch (error) {
+    console.warn("Failed to list existing file search stores", error);
+  }
+
+  return undefined;
 }
