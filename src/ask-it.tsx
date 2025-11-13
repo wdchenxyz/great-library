@@ -2,9 +2,15 @@ import { Action, ActionPanel, Clipboard, Icon, List, Toast, showToast } from "@r
 import type { Content } from "@google/genai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { randomUUID } from "node:crypto";
-import { ensureFileSearchStore } from "./lib/file-search";
 import { getDocuments } from "./lib/cache";
-import { askLibrary, CitationEntry, describeGroundingChunk, truncate } from "./lib/ask";
+import {
+  buildAskHistory,
+  CitationEntry,
+  DEFAULT_MAX_CONTEXT_MESSAGES,
+  describeGroundingChunk,
+  runAskFlow,
+  truncate,
+} from "./lib/ask";
 import type { StoredDocument } from "./lib/types";
 
 type QaEntry = {
@@ -17,7 +23,7 @@ type QaEntry = {
   createdAt: string;
 };
 
-const MAX_CONTEXT_MESSAGES = 10;
+const MAX_CONTEXT_MESSAGES = DEFAULT_MAX_CONTEXT_MESSAGES;
 
 export default function AskItCommand() {
   const [searchText, setSearchText] = useState<string>("");
@@ -58,26 +64,30 @@ export default function AskItCommand() {
       const toast = await showToast({ style: Toast.Style.Animated, title: "Searching documents..." });
 
       try {
-        const { name: storeName, displayName: storeDisplayName } = await ensureFileSearchStore();
-        console.log("[AskIt] Using file search store", {
-          storeName,
-          storeDisplayName: storeDisplayName ?? "(no display name)",
-        });
-
-        const history = [...conversation, { role: "user", parts: [{ text: question }] }];
+        const history = buildAskHistory(question, conversation);
         console.log("[AskIt] Sending request", {
           historyCount: history.length,
           latestUserQuestionLength: question.length,
           documentCount: documents.length,
         });
 
-        const { answer, citations, metadata, modelContent } = await askLibrary({
+        const {
+          answer,
+          citations,
+          metadata,
+          modelContent,
+          store,
+          conversation: updatedConversation,
+        } = await runAskFlow({
           question,
           conversation,
           history,
           documents,
-          storeName,
-          storeDisplayName,
+          maxContextMessages: MAX_CONTEXT_MESSAGES,
+        });
+        console.log("[AskIt] Using file search store", {
+          storeName: store.name,
+          storeDisplayName: store.displayName ?? "(no display name)",
         });
         console.log("[AskIt] Received response", {
           answerPreview: answer ? `${answer.slice(0, 80)}${answer.length > 80 ? "…" : ""}` : null,
@@ -101,14 +111,7 @@ export default function AskItCommand() {
           );
         }
 
-        const updatedHistory: Content[] = [...history];
-        if (modelContent) {
-          updatedHistory.push({ role: modelContent.role ?? "model", parts: modelContent.parts });
-        } else if (answer) {
-          updatedHistory.push({ role: "model", parts: [{ text: answer }] });
-        }
-
-        setConversation(trimConversation(updatedHistory));
+        setConversation(updatedConversation);
 
         setEntries((prev) =>
           prev.map((entry) =>
@@ -242,13 +245,6 @@ export default function AskItCommand() {
       )}
     </List>
   );
-}
-
-function trimConversation(history: Content[]): Content[] {
-  if (history.length <= MAX_CONTEXT_MESSAGES) {
-    return history;
-  }
-  return history.slice(history.length - MAX_CONTEXT_MESSAGES);
 }
 
 function getEntryMarkdown(entry: QaEntry): string {

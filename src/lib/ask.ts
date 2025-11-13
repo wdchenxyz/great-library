@@ -33,7 +33,18 @@ export interface AskResult {
     name: string;
     displayName?: string;
   };
+  history: Content[];
 }
+
+export interface AskFlowOptions extends AskOptions {
+  maxContextMessages?: number;
+}
+
+export interface AskFlowResult extends AskResult {
+  conversation: Content[];
+}
+
+export const DEFAULT_MAX_CONTEXT_MESSAGES = 10;
 
 export async function askLibrary(options: AskOptions): Promise<AskResult> {
   const trimmedQuestion = options.question?.trim();
@@ -80,6 +91,71 @@ export async function askLibrary(options: AskOptions): Promise<AskResult> {
     modelContent: candidate?.content,
     metadata: candidate?.groundingMetadata,
     store,
+    history,
+  };
+}
+
+export function buildAskHistory(question: string, conversation: Content[] = []): Content[] {
+  const trimmed = question.trim();
+  if (!trimmed) {
+    throw new Error("A question is required to build the ask history.");
+  }
+
+  return [
+    ...conversation,
+    {
+      role: "user",
+      parts: [{ text: trimmed }],
+    },
+  ];
+}
+
+export function appendModelResponse(
+  history: Content[],
+  result: { modelContent?: Content; answer?: string },
+): Content[] {
+  if (!history.length) {
+    return history;
+  }
+
+  const next = [...history];
+  if (result.modelContent) {
+    next.push({ role: result.modelContent.role ?? "model", parts: result.modelContent.parts });
+  } else if (result.answer) {
+    next.push({ role: "model", parts: [{ text: result.answer }] });
+  }
+  return next;
+}
+
+export function trimConversation(history: Content[], maxContextMessages = DEFAULT_MAX_CONTEXT_MESSAGES): Content[] {
+  if (history.length <= maxContextMessages) {
+    return history;
+  }
+  return history.slice(history.length - maxContextMessages);
+}
+
+export async function runAskFlow(options: AskFlowOptions): Promise<AskFlowResult> {
+  const question = options.question?.trim();
+  if (!question) {
+    throw new Error("A question is required to query the Great Library.");
+  }
+
+  const baseConversation = options.conversation ?? [];
+  const history = options.history ?? buildAskHistory(question, baseConversation);
+  const { maxContextMessages, ...askOptions } = options;
+  const askResult = await askLibrary({
+    ...askOptions,
+    question,
+    conversation: baseConversation,
+    history,
+  });
+
+  const conversationWithResponse = appendModelResponse(history, askResult);
+  const conversation = trimConversation(conversationWithResponse, maxContextMessages ?? DEFAULT_MAX_CONTEXT_MESSAGES);
+
+  return {
+    ...askResult,
+    conversation,
   };
 }
 
