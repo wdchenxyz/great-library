@@ -39,11 +39,18 @@ export async function readFilesMetadata(paths: string[]): Promise<UploadableFile
         continue;
       }
 
+      const filename = path.split("/").pop() || "";
+      const mimeType = mimeLookup(filename) || undefined;
+      console.log(`File: ${filename}, MIME Type: ${mimeType || "unknown"}`);
+      if (mimeType === undefined) {
+        throw new Error(`Unable to determine MIME type for file: ${filename}`);
+      }
+
       metadata.push({
         path,
         name: basename(path),
         size: stats.size,
-        mimeType: (mimeLookup(path) || "application/octet-stream") as string,
+        mimeType: mimeType || "text/plain"
       });
     } catch (error) {
       console.warn("Unable to read file metadata", path, error);
