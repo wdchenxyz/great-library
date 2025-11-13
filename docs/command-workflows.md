@@ -37,6 +37,12 @@ This note walks through the three Raycast commands (`Ask`, `List Files`, and `Up
 - Grounding diagnostics surface `doc` and `snippetPreview` data; if those fields are empty, inspect the logged `groundingChunks` object to adjust parsing (`src/ask-it.tsx:108-123`).
 - The command does not persist conversation history; relaunching starts a fresh session.
 
+## AI Tools
+- **Shared helpers**: Both AI tools rely on `uploadFilesToLibrary`, `findOversizedFile`, and `readFilesMetadata` to keep uploads consistent with the UI command (`src/lib/upload.ts:1-116`). Any changes to upload validation or store logging should happen in this module first.
+- **Ask tool**: A thin wrapper around `askLibrary` that validates the question, delegates Gemini calls to the shared flow, and returns the formatted answer plus citations (`src/tools/ask.ts:1-41`). Behavior mirrors the Ask command, just without UI state.
+- **Note tool**: Accepts `title` and `content`, writes a temporary Markdown file, checks size limits, uploads via the shared helper, and returns the stored document metadata (`src/tools/note.ts:1-104`). Temporary files are always cleaned up in a `finally` block, so failures leave no residue.
+- **Tool registration**: Both tools are declared in `package.json` under the `tools` array so Raycast AI can invoke them when appropriate (`package.json:32-46`). Keep descriptions aligned with how the underlying functions behave to guide tool selection.
+
 ## Handoff Checklist
 1. Confirm the Raycast preferences include a `store-display-name` shared across commands.
 2. Run Upload → List → Ask sequentially to verify the shared File Search store is reused and logs report consistent IDs.
