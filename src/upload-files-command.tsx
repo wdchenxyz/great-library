@@ -42,11 +42,6 @@ export default function UploadFilesCommand({ launchContext }: LaunchProps) {
       isLoading={isUploading}
       navigationTitle="Upload Files to Great Library"
     >
-      <Form.Description
-        title="Upload Files"
-        text={description}
-      />
-
       <Form.FilePicker
         id="files"
         title="Files"
@@ -55,15 +50,6 @@ export default function UploadFilesCommand({ launchContext }: LaunchProps) {
         onChange={handleSelectionChange}
         info={helperText}
       />
-
-      {files.length > 0 && (
-        <Form.Description
-          title="Selected Files"
-          text={files
-            .map((file) => `• ${file.name} (${formatBytes(file.size)})`)
-            .join("\n")}
-        />
-      )}
     </Form>
   );
 }
