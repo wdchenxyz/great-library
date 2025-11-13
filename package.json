@@ -33,6 +33,13 @@
       "mode": "view"
     }
   ],
+  "tools": [
+    {
+      "name": "ask",
+      "title": "Ask the Library",
+      "description": "Answer questions about the documents stored in the Great Library."
+    }
+  ],
   "dependencies": {
     "@google/genai": "^1.29.0",
     "@raycast/api": "^1.103.6",
@@ -66,6 +73,9 @@
       "required": false
     }
   ],
+  "ai": {
+    "instructions": "When the user asks about the Great Library or their indexed documents, call the ask tool to respond. Reference citations when they are available."
+  },
   "scripts": {
     "build": "ray build",
     "dev": "ray develop",

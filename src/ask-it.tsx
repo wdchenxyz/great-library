@@ -1,20 +1,11 @@
 import { Action, ActionPanel, Clipboard, Icon, List, Toast, showToast } from "@raycast/api";
-import type { Content, GroundingChunk, GroundingMetadata } from "@google/genai";
+import type { Content } from "@google/genai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { randomUUID } from "node:crypto";
 import { ensureFileSearchStore } from "./lib/file-search";
-import { getGoogleClient } from "./lib/google-client";
-import { DEFAULT_MODEL } from "./lib/constants";
 import { getDocuments } from "./lib/cache";
+import { askLibrary, CitationEntry, describeGroundingChunk, truncate } from "./lib/ask";
 import type { StoredDocument } from "./lib/types";
-
-type CitationEntry = {
-  id: string;
-  documentId?: string;
-  documentName: string;
-  snippet?: string;
-  uri?: string;
-};
 
 type QaEntry = {
   id: string;
@@ -73,7 +64,6 @@ export default function AskItCommand() {
           storeDisplayName: storeDisplayName ?? "(no display name)",
         });
 
-        const client = getGoogleClient();
         const history = [...conversation, { role: "user", parts: [{ text: question }] }];
         console.log("[AskIt] Sending request", {
           historyCount: history.length,
@@ -81,35 +71,23 @@ export default function AskItCommand() {
           documentCount: documents.length,
         });
 
-        const response = await client.models.generateContent({
-          model: DEFAULT_MODEL,
-          contents: history,
-          config: {
-            tools: [
-              {
-                fileSearch: {
-                  fileSearchStoreNames: [storeName],
-                },
-              },
-            ],
-          },
+        const { answer, citations, metadata, modelContent } = await askLibrary({
+          question,
+          conversation,
+          history,
+          documents,
+          storeName,
+          storeDisplayName,
         });
-
-        const candidate = response.candidates?.[0];
-        const answer = (response.text ?? extractText(candidate?.content))?.trim();
-        const citations = extractCitations(candidate?.groundingMetadata, documents);
         console.log("[AskIt] Received response", {
           answerPreview: answer ? `${answer.slice(0, 80)}${answer.length > 80 ? "…" : ""}` : null,
           citationCount: citations.length,
-          groundingChunkCount: candidate?.groundingMetadata?.groundingChunks?.length ?? 0,
-          searchQueryCount: candidate?.groundingMetadata?.webSearchQueries?.length ?? 0,
-          toolCalls: candidate?.content?.parts?.filter((part) => part?.inlineData || part?.functionCall).length ?? 0,
+          groundingChunkCount: metadata?.groundingChunks?.length ?? 0,
+          searchQueryCount: metadata?.webSearchQueries?.length ?? 0,
+          toolCalls: modelContent?.parts?.filter((part) => part?.inlineData || part?.functionCall).length ?? 0,
         });
-        if (candidate?.groundingMetadata?.groundingChunks?.length) {
-          console.log(
-            "[AskIt] Grounding chunks",
-            candidate.groundingMetadata.groundingChunks.map(describeGroundingChunk),
-          );
+        if (metadata?.groundingChunks?.length) {
+          console.log("[AskIt] Grounding chunks", metadata.groundingChunks.map(describeGroundingChunk));
         }
         if (citations.length) {
           console.log(
@@ -124,8 +102,8 @@ export default function AskItCommand() {
         }
 
         const updatedHistory: Content[] = [...history];
-        if (candidate?.content) {
-          updatedHistory.push({ role: candidate.content.role ?? "model", parts: candidate.content.parts });
+        if (modelContent) {
+          updatedHistory.push({ role: modelContent.role ?? "model", parts: modelContent.parts });
         } else if (answer) {
           updatedHistory.push({ role: "model", parts: [{ text: answer }] });
         }
@@ -242,11 +220,7 @@ export default function AskItCommand() {
                     onAction={() => copyEntryAnswer(entry)}
                     shortcut={{ modifiers: ["cmd"], key: "c" }}
                   />
-                  <Action
-                    title="Copy Citations"
-                    icon={Icon.Clipboard}
-                    onAction={() => copyEntryCitations(entry)}
-                  />
+                  <Action title="Copy Citations" icon={Icon.Clipboard} onAction={() => copyEntryCitations(entry)} />
                   <Action title="Ask Follow-Up" icon={Icon.Message} onAction={() => setSearchText("")} />
                   <Action
                     title="Ask Again"
@@ -275,17 +249,6 @@ function trimConversation(history: Content[]): Content[] {
     return history;
   }
   return history.slice(history.length - MAX_CONTEXT_MESSAGES);
-}
-
-function extractText(content?: Content): string | undefined {
-  if (!content?.parts?.length) {
-    return undefined;
-  }
-  return content.parts
-    .map((part) => part.text)
-    .filter(Boolean)
-    .join("\n\n")
-    .trim();
 }
 
 function getEntryMarkdown(entry: QaEntry): string {
@@ -345,70 +308,4 @@ async function copyEntryCitations(entry: QaEntry) {
     .join("\n\n");
 
   await Clipboard.copy(payload);
-}
-
-function describeGroundingChunk(chunk: GroundingChunk) {
-  const context = chunk.retrievedContext;
-  const web = chunk.web;
-  const maps = chunk.maps;
-  const snippetSource = context?.ragChunk?.text ?? context?.text ?? maps?.text ?? web?.title;
-
-  return {
-    sourceType: context ? "file-search" : maps ? "maps" : web ? "web" : "unknown",
-    documentName: context?.documentName,
-    title: context?.title ?? maps?.title ?? web?.title,
-    uri: context?.uri ?? maps?.uri ?? web?.uri,
-    snippetPreview: truncate(snippetSource),
-    hasRagChunk: Boolean(context?.ragChunk),
-    hasText: Boolean(context?.text ?? maps?.text ?? web?.title),
-    rawContextKeys: context ? Object.keys(context) : undefined,
-    rawWebKeys: web ? Object.keys(web) : undefined,
-    rawMapsKeys: maps ? Object.keys(maps) : undefined,
-  };
-}
-
-function truncate(text?: string, length = 80) {
-  if (!text) {
-    return "";
-  }
-  if (text.length <= length) {
-    return text;
-  }
-  return `${text.slice(0, length - 1)}…`;
-}
-
-function extractCitations(metadata: GroundingMetadata | undefined, documents: StoredDocument[]): CitationEntry[] {
-  if (!metadata?.groundingChunks?.length) {
-    return [];
-  }
-
-  const byDocument = new Map<string, CitationEntry>();
-  const docMap = new Map(documents.map((doc) => [doc.id, doc]));
-
-  for (const chunk of metadata.groundingChunks) {
-    const context = chunk.retrievedContext;
-    if (!context) {
-      continue;
-    }
-
-    const documentId = context.documentName ? context.documentName.split("/").pop() : undefined;
-    const baseId = documentId ?? context.uri ?? randomUUID();
-    const existing = byDocument.get(baseId);
-    const storedDoc = documentId ? docMap.get(documentId) : undefined;
-    const snippet = context.ragChunk?.text ?? context.text;
-
-    if (!existing) {
-      byDocument.set(baseId, {
-        id: baseId,
-        documentId,
-        documentName: storedDoc?.name ?? context.title ?? documentId ?? "Document",
-        snippet,
-        uri: context.uri,
-      });
-    } else if (!existing.snippet && snippet) {
-      existing.snippet = snippet;
-    }
-  }
-
-  return Array.from(byDocument.values());
 }
