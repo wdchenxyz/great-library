@@ -4,7 +4,7 @@
 
 import { Clipboard, Color, showToast, Toast } from "@raycast/api";
 import { QaEntry } from "../hooks/useAskQuestion";
-import { CitationEntry, truncate } from "../lib/ask";
+import { CitationEntry } from "../lib/ask";
 import type { UploadStatus } from "../lib/types";
 
 /**
@@ -44,7 +44,7 @@ export async function copyEntryAnswer(entry: QaEntry): Promise<void> {
   if (!entry.answer) {
     await showToast({
       style: Toast.Style.Failure,
-      title: "No answer to copy"
+      title: "No answer to copy",
     });
     return;
   }
@@ -52,7 +52,7 @@ export async function copyEntryAnswer(entry: QaEntry): Promise<void> {
   await Clipboard.copy(entry.answer);
   await showToast({
     style: Toast.Style.Success,
-    title: "Answer copied"
+    title: "Answer copied",
   });
 }
 
@@ -63,16 +63,14 @@ export async function copyEntryCitations(citations: CitationEntry[]): Promise<vo
   if (!citations.length) {
     await showToast({
       style: Toast.Style.Failure,
-      title: "No citations to copy"
+      title: "No citations to copy",
     });
     return;
   }
 
   const payload = citations
     .map((citation, index) => {
-      const lines = [
-        `${index + 1}. ${citation.documentName}${citation.documentId ? ` (${citation.documentId})` : ""}`
-      ];
+      const lines = [`${index + 1}. ${citation.documentName}${citation.documentId ? ` (${citation.documentId})` : ""}`];
 
       if (citation.snippet) {
         lines.push(`   "${citation.snippet}"`);
@@ -89,7 +87,7 @@ export async function copyEntryCitations(citations: CitationEntry[]): Promise<vo
   await Clipboard.copy(payload);
   await showToast({
     style: Toast.Style.Success,
-    title: "Citations copied"
+    title: "Citations copied",
   });
 }
 

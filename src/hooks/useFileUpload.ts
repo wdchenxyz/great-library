@@ -36,10 +36,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
   const lastSelectionRef = useRef<string>("");
 
   // Calculate total size of selected files
-  const totalSize = useMemo(
-    () => files.reduce((sum, file) => sum + file.size, 0),
-    [files]
-  );
+  const totalSize = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
 
   // Reset state when needed (e.g., after successful upload or on mount)
   const reset = useCallback(() => {
@@ -94,7 +91,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
         const oversizeFile = findOversizedFile(selectedFiles);
         if (oversizeFile) {
           throw new Error(
-            `${oversizeFile.name} exceeds the ${MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB limit enforced by Google File Search.`
+            `${oversizeFile.name} exceeds the ${MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB limit enforced by Google File Search.`,
           );
         }
 
@@ -134,7 +131,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
         setIsUploading(false);
       }
     },
-    [files, lastSelectionSignature, reset, options]
+    [files, lastSelectionSignature, reset, options],
   );
 
   // Clean up on unmount

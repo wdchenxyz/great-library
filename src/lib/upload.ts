@@ -50,7 +50,7 @@ export async function readFilesMetadata(paths: string[]): Promise<UploadableFile
         path,
         name: basename(path),
         size: stats.size,
-        mimeType: mimeType || "text/plain"
+        mimeType: mimeType || "text/plain",
       });
     } catch (error) {
       console.warn("Unable to read file metadata", path, error);
@@ -67,7 +67,10 @@ export function findOversizedFile(
   return files.find((file) => file.size > maxSizeBytes);
 }
 
-export async function uploadFilesToLibrary(files: UploadableFile[], options: UploadOptions = {}): Promise<UploadResult> {
+export async function uploadFilesToLibrary(
+  files: UploadableFile[],
+  options: UploadOptions = {},
+): Promise<UploadResult> {
   if (files.length === 0) {
     throw new Error("Provide at least one file to upload.");
   }
@@ -95,9 +98,7 @@ export async function uploadFilesToLibrary(files: UploadableFile[], options: Upl
       },
     });
 
-    const completedOperation = await waitForUploadCompletion(operation, (op) =>
-      options.onOperationTick?.(file, op),
-    );
+    const completedOperation = await waitForUploadCompletion(operation, (op) => options.onOperationTick?.(file, op));
 
     const documentId = parseDocumentId(completedOperation.response?.documentName ?? completedOperation.name ?? "");
 

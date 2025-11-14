@@ -1,6 +1,5 @@
 import { Action, ActionPanel, Form, LaunchProps } from "@raycast/api";
 import { useEffect } from "react";
-import { MAX_FILE_SIZE_BYTES } from "./lib/upload";
 import { formatBytes } from "./lib/format";
 import { useFileUpload } from "./hooks/useFileUpload";
 
@@ -23,20 +22,16 @@ export default function UploadFilesCommand({ launchContext }: LaunchProps) {
   };
 
   // Helper text for the form
-  const helperText = files.length > 0
-    ? `${files.length} file(s) selected • ${formatBytes(totalSize)} total`
-    : "Select files to upload to your Great Library";
-
-  const description = `Upload documents to Google File Search for Q&A. Maximum file size: ${MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB per file.`;
+  const helperText =
+    files.length > 0
+      ? `${files.length} file(s) selected • ${formatBytes(totalSize)} total`
+      : "Select files to upload to your Great Library";
 
   return (
     <Form
       actions={
         <ActionPanel>
-          <Action.SubmitForm
-            title="Upload"
-            onSubmit={handleSubmit}
-          />
+          <Action.SubmitForm title="Upload" onSubmit={handleSubmit} />
         </ActionPanel>
       }
       isLoading={isUploading}

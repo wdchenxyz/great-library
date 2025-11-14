@@ -35,7 +35,7 @@
   ,
     {
       "name": "quick-note",
-      "title": "Quick note",
+      "title": "Quick Note",
       "description": "Jot it down in the Great Library",
       "mode": "no-view"
     }
@@ -48,7 +48,7 @@
     },
     {
       "name": "note",
-      "title": "note",
+      "title": "Note",
       "description": "Take notes and upload to notebook"
     }
   ],

@@ -79,7 +79,7 @@ export function useAskQuestion(maxContextMessages = DEFAULT_MAX_CONTEXT_MESSAGES
       setIsLoading(true);
       const toast = await showToast({
         style: Toast.Style.Animated,
-        title: "Searching documents..."
+        title: "Searching documents...",
       });
 
       try {

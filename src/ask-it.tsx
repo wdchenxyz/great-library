@@ -54,11 +54,7 @@ export default function AskItCommand() {
           detail={<List.Item.Detail markdown={placeholderDetail} />}
           actions={
             <ActionPanel>
-              <Action
-                title="Ask Question"
-                icon={Icon.MagnifyingGlass}
-                onAction={() => handleAsk()}
-              />
+              <Action title="Ask Question" icon={Icon.MagnifyingGlass} onAction={() => handleAsk()} />
               {entries.length > 0 && (
                 <Action
                   title="Clear History"
@@ -83,10 +79,7 @@ export default function AskItCommand() {
               icon={entry.status === "error" ? Icon.ExclamationMark : Icon.Document}
               subtitle={entry.status === "error" ? "Error" : undefined}
               detail={
-                <List.Item.Detail
-                  markdown={getEntryMarkdown(entry)}
-                  metadata={<EntryMetadata entry={entry} />}
-                />
+                <List.Item.Detail markdown={getEntryMarkdown(entry)} metadata={<EntryMetadata entry={entry} />} />
               }
               actions={
                 <ActionPanel>
@@ -101,11 +94,7 @@ export default function AskItCommand() {
                     icon={Icon.Clipboard}
                     onAction={() => copyEntryCitations(entry.citations)}
                   />
-                  <Action
-                    title="Ask Follow-Up"
-                    icon={Icon.Message}
-                    onAction={() => setSearchText("")}
-                  />
+                  <Action title="Ask Follow-Up" icon={Icon.Message} onAction={() => setSearchText("")} />
                   <Action
                     title="Ask Again"
                     icon={Icon.Repeat}
@@ -134,14 +123,8 @@ export default function AskItCommand() {
 function EntryMetadata({ entry }: { entry: QaEntry }) {
   return (
     <List.Item.Detail.Metadata>
-      <List.Item.Detail.Metadata.Label
-        title="Question"
-        text={entry.question}
-      />
-      <List.Item.Detail.Metadata.Label
-        title="Asked"
-        text={new Date(entry.createdAt).toLocaleString()}
-      />
+      <List.Item.Detail.Metadata.Label title="Question" text={entry.question} />
+      <List.Item.Detail.Metadata.Label title="Asked" text={new Date(entry.createdAt).toLocaleString()} />
       {entry.citations.length > 0 && (
         <>
           <List.Item.Detail.Metadata.Separator />
