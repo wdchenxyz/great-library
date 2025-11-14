@@ -3,7 +3,7 @@
   "name": "great-library",
   "title": "Great Library",
   "description": "Ask about anything about your documents.",
-  "icon": "extension-icon.png",
+  "icon": "extension_icon4.png",
   "author": "wdchen",
   "platforms": [
     "macOS",
