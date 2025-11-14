@@ -32,7 +32,14 @@
       "description": "What are stored in Great Library",
       "mode": "view"
     }
-  ],
+  ,
+    {
+      "name": "quick-note",
+      "title": "Quick note",
+      "description": "Jot it down in the Great Library",
+      "mode": "no-view"
+    }
+      ],
   "tools": [
     {
       "name": "ask",
