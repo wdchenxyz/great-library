@@ -2,7 +2,7 @@
   "$schema": "https://www.raycast.com/schemas/extension.json",
   "name": "great-library",
   "title": "Great Library",
-  "description": "Ask about anything about your documents.",
+  "description": "Ask anything in your Great Library.",
   "icon": "extension_icon4.png",
   "author": "wdchen",
   "platforms": [
@@ -43,7 +43,7 @@
     {
       "name": "note",
       "title": "Note",
-      "description": "Take notes and upload to notebook"
+      "description": "Take notes and upload to Great Library."
     }
   ],
   "dependencies": {
