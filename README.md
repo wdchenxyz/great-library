@@ -1,6 +1,7 @@
 # Great Library
 
-Build your personal AI-powered knowledge base. Upload documents and ask questions about them using Google's Gemini API.
+Build your personal AI-powered knowledge base. Upload documents and ask questions about them using Google's File Search
+API.
 
 ## Features
 
