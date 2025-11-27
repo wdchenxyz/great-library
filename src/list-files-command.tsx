@@ -13,7 +13,7 @@ export default function ListFilesCommand() {
   const handleDelete = async (documentId: string, documentName: string) => {
     const shouldDelete = await confirmAlert({
       title: "Delete Document?",
-      message: `Delete "${documentName}" from your library? This cannot be undone.`,
+      message: `Delete "${documentName}" from your library? This cannot be undone!`,
       icon: Icon.Trash,
       primaryAction: {
         title: "Delete",
