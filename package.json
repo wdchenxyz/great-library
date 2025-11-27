@@ -15,12 +15,6 @@
   "license": "MIT",
   "commands": [
     {
-      "name": "ask-it",
-      "title": "Ask It",
-      "description": "Ask the library.",
-      "mode": "view"
-    },
-    {
       "name": "upload-files",
       "title": "Upload Files",
       "description": "Upload files to Great Library",
