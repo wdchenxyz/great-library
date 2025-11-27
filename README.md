@@ -11,5 +11,5 @@ Build your personal AI-powered knowledge base. Upload documents and ask question
 
 ## Setup
 
-1. Get a Google AI API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
+1. Get a Google AI API key from [Google AI Studio](https://aistudio.google.com/api-keys)
 2. Enter your API key in the extension preferences

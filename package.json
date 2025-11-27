@@ -66,7 +66,7 @@
       "name": "api-key",
       "title": "Google AI API Key",
       "type": "password",
-      "description": "Generate one at https://aistudio.google.com/app/apikey and paste it here.",
+      "description": "Generate one at https://aistudio.google.com/api-keys and paste it here.",
       "required": true
     },
     {
